@@ -8,7 +8,7 @@ CONFIG -= app_bundle
 DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-        ../../src/vcglib-2020.09/wrap/ply/plylib.cpp \
+        ../../src/vcglib_dev/wrap/ply/plylib.cpp \
         cleanup.cpp \
         main.cpp
 

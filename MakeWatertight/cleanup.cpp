@@ -1,20 +1,18 @@
 #include "cleanup.h"
 #include "mesh.h"
-#include "complex.h"
+//#include "complex.h"
 
-//#include <apps/QT/trimesh_QT_shared/mesh.h>
 #include<vcg/complex/complex.h>
 #include<vcg/complex/algorithms/stat.h>
 #include <vcg/complex/algorithms/clean.h>
 #include <vcg/complex/algorithms/hole.h>
-#include <vcg/complex/algorithms/mesh_to_matrix.h>//Triggers error with MinGW, but works in msvc??
+#include <vcg/complex/algorithms/mesh_to_matrix.h>
 #include<vcg/complex/algorithms/inertia.h>
 
 //#include <eigenlib/Eigen/Core>
 
 
-
-//#include <igl/ambient_occlusion.h>
+#include <igl/embree/ambient_occlusion.h>
 //#include <igl/AABB.h>
 
 #include "mesh.h"
@@ -51,36 +49,32 @@ void Cleanup::initialCleanup(CMeshO& mesh) {
 
 void Cleanup::ambientOcclusionRemoval(CMeshO& mesh) {
     //https://github.com/cnr-isti-vclab/meshlab/blob/585226d8a28244379c2807b6848634c4c545c4b7/src/meshlabplugins/filter_ao/filter_ao.cpp
-    //Blender looks too tough for me to figure out
-    //OpenGl? Vulkan?
     //This might be our best bet: https://github.com/libigl/libigl/blob/main/tutorial/606_AmbientOcclusion/main.cpp
     //meshlab is actually using it underneath for some things, so I should be able to figure out type conversion.
     //https://github.com/cnr-isti-vclab/vcglib/blob/001a01b38688acbf81f0ec821e9bde3e6d4622ab/wrap/igl/smooth_field.h
     //They use a MeshToMatrix function to get the appropriate vertex and face matrices.
 
-
-
-
     //Step 1: Get the matrices from the meshlab mesh.
     int verts_deleted;
-    //    Eigen::MatrixXf V;
-    //    Eigen::MatrixXi F;
-    //    Eigen::MatrixXf NV; //Vertex Normals
-    //    Eigen::MatrixXf NF; //Face normals
-    //    Eigen::VectorXf AO; //Ambient Occlusion Values
+    Eigen::MatrixXf V;
+    Eigen::MatrixXi F;
+    Eigen::MatrixXf NV; //Vertex Normals
+    Eigen::MatrixXf NF; //Face normals
+    Eigen::VectorXf AO; //Ambient Occlusion Values
 
-    //    vcg::tri::MeshToMatrix<CMeshO>::GetTriMeshData(mesh,F,V);
-    //    vcg::tri::MeshToMatrix<CMeshO>::GetNormalData(mesh, NV, NF);
+    tri::Allocator<CMeshO>::CompactVertexVector(mesh);
+    tri::Allocator<CMeshO>::CompactFaceVector(mesh);
+    vcg::tri::MeshToMatrix<CMeshO>::GetTriMeshData(mesh,F,V);
+    vcg::tri::MeshToMatrix<CMeshO>::GetNormalData(mesh, NV, NF);
 
 
-    //    Step two: Use libigl to calculate the ambient occlusion.
+    //Step two: Use libigl to calculate the ambient occlusion.
         //I get some errors when I include <igl/ambient_occlusion.h>
     //    igl::embree::ambient_occlusion(V,F,V,NV,2500,AO);
-    //    igl::ambient_occlusion(V,F,V,NV,2500,AO);
+        igl::embree::ambient_occlusion(V,F,V,NV,500,AO);
 
 
         //Step three: I need to set the quality of the meshlab mesh to teh normalized ambient occlusion value.
-
 
 
         //Step four: Delete faces and vertices based on that quality.

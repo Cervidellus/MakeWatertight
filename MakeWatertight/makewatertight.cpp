@@ -84,10 +84,10 @@ int main(int argc, char* argv[])
 
         //Process Mesh
         Cleanup::initialCleanup(mesh);
-        //if(parser.isSet(ambientOcclusionOption))
-        //{
-        //    Cleanup::ambientOcclusionRemoval(mesh);
-        //}
+        if(vm["ambient_occlusion"].as<bool>())
+        {
+            Cleanup::ambientOcclusionRemoval(mesh);
+        }
         Cleanup::fixNonManifold(mesh);
         Cleanup::closeHoles(mesh);
 

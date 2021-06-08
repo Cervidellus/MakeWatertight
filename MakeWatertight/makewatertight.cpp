@@ -17,21 +17,23 @@ namespace po = boost::program_options;
 
 int main(int argc, char* argv[])
 {
+    //Process command line arguments
     po::options_description description("Takes a trimesh as input and outputs a watertight and 2-manifold mesh.");
 
     description.add_options()
         ("help, h", "Display this help message.")
 
         ("source, s",
-            po::value<string>()->default_value("tiny.obj"),
+            po::value<string>()->default_value("864691136023902009.ply"),
+            //po::value<string>()->default_value("internal_test.ply"),
             "Source file.")
-
+        
         ("destination, d",
             po::value<string>()->default_value("output"),
             "Destination folder. Will create if does not exist.")
 
         ("ambient_occlusion, a",
-            po::value<bool>()->default_value(true),
+            po::value<bool>()->default_value(true), 
             "Deletion of internal geometries based on screen space ambient occlusion values. Default True.")
         ;
 
@@ -52,7 +54,7 @@ int main(int argc, char* argv[])
     mesh.face.EnableNormal();
     mesh.vert.EnableNormal();
 
-        //Load file
+    //Load file
 
     if(!boost::filesystem::exists(source.string())) {
         cout << "Source file does:" << source.root_path() << " does not exist!" << endl;
@@ -81,6 +83,7 @@ int main(int argc, char* argv[])
         mesh.vert.EnableCurvature();
         mesh.vert.EnableCurvatureDir();
         mesh.vert.EnableRadius();
+        mesh.vert.EnableColor();
 
         //Process Mesh
         Cleanup::initialCleanup(mesh);
@@ -94,9 +97,14 @@ int main(int argc, char* argv[])
         //Save Mesh
         std::string outputFilePath = (destination.string() + "/" + source.filename().string());
         cout << "saving output to " << outputFilePath << endl;
-        vcg::tri::io::Exporter<CMeshO>::Save(mesh, outputFilePath.c_str());
+        vcg::tri::io::Exporter<CMeshO>::Save(mesh, outputFilePath.c_str(), vcg::tri::io::Mask::IOM_VERTCOLOR | vcg::tri::io::Mask::IOM_VERTQUALITY);
 
         cout << "Finished!";
         return 0;
 }
 
+//Next steps::use AO to remove internal meshes.
+
+//Write to process a list instead of a string. 
+
+//Try and figure out how to get vertex splitting to take less memory.

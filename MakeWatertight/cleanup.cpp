@@ -2,12 +2,13 @@
 #include "mesh.h"
 //#include "complex.h"
 
-#include<vcg/complex/complex.h>
-#include<vcg/complex/algorithms/stat.h>
+#include <vcg/complex/complex.h>
+#include <vcg/complex/algorithms/stat.h>
 #include <vcg/complex/algorithms/clean.h>
 #include <vcg/complex/algorithms/hole.h>
 #include <vcg/complex/algorithms/mesh_to_matrix.h>
-#include<vcg/complex/algorithms/inertia.h>
+#include <vcg/complex/algorithms/inertia.h>
+#include <vcg/complex/algorithms/update/color.h>
 
 //#include <eigenlib/Eigen/Core>
 
@@ -56,6 +57,9 @@ void Cleanup::ambientOcclusionRemoval(CMeshO& mesh) {
 
     //Step 1: Get the matrices from the meshlab mesh.
     int verts_deleted;
+    CMeshO::VertexIterator vi;
+    CMeshO::FaceIterator fi;
+
     Eigen::MatrixXf V;
     Eigen::MatrixXi F;
     Eigen::MatrixXf NV; //Vertex Normals
@@ -67,24 +71,72 @@ void Cleanup::ambientOcclusionRemoval(CMeshO& mesh) {
     vcg::tri::MeshToMatrix<CMeshO>::GetTriMeshData(mesh,F,V);
     vcg::tri::MeshToMatrix<CMeshO>::GetNormalData(mesh, NV, NF);
 
-
     //Step two: Use libigl to calculate the ambient occlusion.
         //I get some errors when I include <igl/ambient_occlusion.h>
     //    igl::embree::ambient_occlusion(V,F,V,NV,2500,AO);
-        igl::embree::ambient_occlusion(V,F,V,NV,500,AO);
+    cout << "Calculating ambient occlusion." << endl;
+    igl::embree::ambient_occlusion(V,F,V,NV,500,AO);
+    cout << "Applying ambient occlusion." << endl;
+
+    //Step three: Set the quality of the meshlab mesh to the normalized ambient occlusion value.
+
+    
+    for (vi = mesh.vert.begin(); vi != mesh.vert.end(); ++vi)
+        if (!(*vi).IsD())
+        {
+            //cout << vi->Index() << " ";     
+            vi->Q() = AO[vi->Index()];
+            //cout << vi->Q() << endl;
+        }
+     //This here temporarily to check
+    //vcg::tri::UpdateColor<CMeshO>::PerVertexQualityGray(mesh);
+    //vcg::tri::UpdateColor<CMeshO>::PerVertexConstant(mesh, vcg::Color4b::Red);
+
+    //Step four: Delete faces and vertices based on that quality.
+    //Modeled after meshlab FP_SELECT_DELETE_FACEVERT, with the exception that I select based on quality 
+
+    tri::UpdateSelection<CMeshO>::VertexFromQualityRange(mesh, .95, 1);
+    //tri::UpdateSelection<CMeshO>::VertexClear(mesh);
+    tri::UpdateSelection<CMeshO>::FaceFromVertexStrict(mesh);
+    //int vvn = mesh.vn;
+    //int ffn = mesh.fn;
+
+    deleteSelectedVerts(mesh);
+
+    printf("Mesh has %i vertices and %i triangular faces after ambient occlusion removal.\n", mesh.VN(), mesh.FN());
 
 
-        //Step three: I need to set the quality of the meshlab mesh to teh normalized ambient occlusion value.
+    //for (fi = mesh.face.begin(); fi != mesh.face.end(); ++fi)
+    //    if (!(*fi).IsD() && (*fi).IsS())
+    //        tri::Allocator<CMeshO>::DeleteFace(mesh, *fi);
+
+    ////Is something wrong here? Seems like a bunch of verts go away... 
+    //for (vi = mesh.vert.begin(); vi != mesh.vert.end(); ++vi)
+    //    if (!(*vi).IsD() && (*vi).IsS())
+    //        tri::Allocator<CMeshO>::DeleteVertex(mesh, *vi);
+
+    tri::UpdateSelection<CMeshO>::VertexClear(mesh);
+    tri::UpdateSelection<CMeshO>::FaceClear(mesh);
+    //int result = tri::Clean<CMeshO>::RemoveFaceOutOfRangeArea(mesh, 0);//This I believe causes some unfortunate holes...and susequent t-vertices, that I need to fix.
+    //cout << result << " Zero area vertices removed." << endl;
+    tri::Clean<CMeshO>::RemoveUnreferencedVertex(mesh);
 
 
-        //Step four: Delete faces and vertices based on that quality.
+    //m.clearDataMask(MeshModel::MM_FACEFACETOPO);
+    //m.clearDataMask(MeshModel::MM_VERTFACETOPO);
 
 
-    //    tri::Allocator<CMeshO>::CompactEveryVector(mesh);
-    //    tri::UpdateSelection<CMeshO>::VertexClear(mesh);//I don't think I need to do faces?
-        //This is going to be a little complicated to implement, as I'll have to use meshlab plugin code rather than vcglib.
-        //https://github.com/cnr-isti-vclab/meshlab/blob/f33ff16ca1d78d1bcf46f838dba0b264aa45887d/src/meshlabplugins/filter_ao/filter_ao.cpp
-    cout << "ambientOcclusionRemoval not yet implemented.";
+    vcg::tri::UpdateTopology<CMeshO>::FaceFace(mesh);
+    vcg::tri::UpdateTopology<CMeshO>::VertexFace(mesh);
+    tri::UpdateSelection<CMeshO>::VertexClear(mesh);
+    tri::UpdateSelection<CMeshO>::FaceClear(mesh);
+    tri::Allocator<CMeshO>::CompactVertexVector(mesh);
+    printf("Mesh has %i vertices and %i triangular faces after cleanup.\n", mesh.VN(), mesh.FN());//why is this low?
+    tri::Allocator<CMeshO>::CompactFaceVector(mesh);
+
+    //updateBoxAndNormals(mesh);
+    
+
 }
 
 void Cleanup::fixNonManifold(CMeshO& mesh) {
@@ -245,7 +297,7 @@ void Cleanup::updateBoxAndNormals(CMeshO& mesh) {
     if (mesh.FN() > 0) {
         mesh.vert.EnableNormal();
         tri::UpdateNormal<CMeshO>::PerFaceNormalized(mesh);
-        tri::UpdateNormal<CMeshO>::PerVertexAngleWeighted(mesh);
+        tri::UpdateNormal<CMeshO>::PerVertexAngleWeighted(mesh);//crash here after AO?
     }
 }
 

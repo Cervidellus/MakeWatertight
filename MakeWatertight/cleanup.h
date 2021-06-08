@@ -9,6 +9,7 @@ namespace Cleanup
     void fixNonManifold(CMeshO& mesh);
     void updateBoxAndNormals(CMeshO& mesh);
     int deleteSelectedVerts(CMeshO& mesh);
+    
     void closeHoles(CMeshO& mesh, int maxHoleSize = 300, bool selected = false, bool avoidSelfIntersection = false);
 }
 

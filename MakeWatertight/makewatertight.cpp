@@ -91,7 +91,9 @@ int main(int argc, char* argv[])
         {
             Cleanup::ambientOcclusionRemoval(mesh);
         }
+
         Cleanup::fixNonManifold(mesh);
+
         Cleanup::closeHoles(mesh);
 
         //Save Mesh
@@ -103,7 +105,9 @@ int main(int argc, char* argv[])
         return 0;
 }
 
-//Next steps::use AO to remove internal meshes.
+//Next steps::removal of small disconnected component
+
+//Iteratively delete border if close holes fails at end of fixNonManifold. Then check manifold again.
 
 //Write to process a list instead of a string. 
 

@@ -2,6 +2,8 @@
 #include "mesh.h"
 //#include "complex.h"
 
+//#include <cstdint >
+
 #include <vcg/complex/complex.h>
 #include <vcg/complex/algorithms/stat.h>
 #include <vcg/complex/algorithms/clean.h>
@@ -10,6 +12,8 @@
 #include <vcg/complex/algorithms/inertia.h>
 #include <vcg/complex/algorithms/update/color.h>
 
+#include <meshlab/src/meshlabplugins/filter_mls/smallcomponentselection.h>
+
 //#include <eigenlib/Eigen/Core>
 
 
@@ -17,12 +21,14 @@
 //#include <igl/AABB.h>
 
 #include "mesh.h"
-
+typedef unsigned int uint;
 using namespace vcg;
 using namespace std;
 
 void Cleanup::initialCleanup(CMeshO& mesh) {
     int result = 0;
+    deleteSmallDisconnectedComponent(mesh);
+    cout << " Deleted small disconnected component." << endl;
     //No pre condition. Post condition MM_GEOMETRY_AND_TOPOLOGY_CHANGE (Not sure I have to do anything when this is used.)
     result = tri::Clean<CMeshO>::RemoveFaceOutOfRangeArea(mesh, 0);//This I believe causes some unfortunate holes...and susequent t-vertices, that I need to fix.
     cout << result << " Zero area vertices removed." << endl;
@@ -78,9 +84,6 @@ void Cleanup::ambientOcclusionRemoval(CMeshO& mesh) {
     igl::embree::ambient_occlusion(V,F,V,NV,500,AO);
     cout << "Applying ambient occlusion." << endl;
 
-    //Step three: Set the quality of the meshlab mesh to the normalized ambient occlusion value.
-
-    
     for (vi = mesh.vert.begin(); vi != mesh.vert.end(); ++vi)
         if (!(*vi).IsD())
         {
@@ -121,11 +124,6 @@ void Cleanup::ambientOcclusionRemoval(CMeshO& mesh) {
     //cout << result << " Zero area vertices removed." << endl;
     tri::Clean<CMeshO>::RemoveUnreferencedVertex(mesh);
 
-
-    //m.clearDataMask(MeshModel::MM_FACEFACETOPO);
-    //m.clearDataMask(MeshModel::MM_VERTFACETOPO);
-
-
     vcg::tri::UpdateTopology<CMeshO>::FaceFace(mesh);
     vcg::tri::UpdateTopology<CMeshO>::VertexFace(mesh);
     tri::UpdateSelection<CMeshO>::VertexClear(mesh);
@@ -134,9 +132,8 @@ void Cleanup::ambientOcclusionRemoval(CMeshO& mesh) {
     printf("Mesh has %i vertices and %i triangular faces after cleanup.\n", mesh.VN(), mesh.FN());//why is this low?
     tri::Allocator<CMeshO>::CompactFaceVector(mesh);
 
+    deleteSmallDisconnectedComponent(mesh);
     //updateBoxAndNormals(mesh);
-    
-
 }
 
 void Cleanup::fixNonManifold(CMeshO& mesh) {
@@ -151,7 +148,7 @@ void Cleanup::fixNonManifold(CMeshO& mesh) {
 
     if ((tri::Clean<CMeshO>::CountNonManifoldVertexFF(mesh) == 0) && (tri::Clean<CMeshO>::CountNonManifoldEdgeFF(mesh) == 0))
     {
-        cout << "Mesh is 2-manifold at start of fixNonManifold. /n Closing holes." << endl;
+        cout << "Mesh is 2-manifold at start of fixNonManifold. \n Closing holes." << endl;
         closeHoles(mesh);
         vcg::tri::UpdateTopology<CMeshO>::FaceFace(mesh);
         vcg::tri::UpdateTopology<CMeshO>::VertexFace(mesh);
@@ -336,4 +333,9 @@ void Cleanup::closeHoles(CMeshO& mesh, int maxHoleSize, bool selected, bool avoi
         tri::Hole<CMeshO>::EarCuttingIntersectionFill<tri::SelfIntersectionEar< CMeshO> >(mesh, maxHoleSize, selected);
     else
         tri::Hole<CMeshO>::EarCuttingFill<vcg::tri::MinimumWeightEar< CMeshO> >(mesh, maxHoleSize, selected);
+}
+
+void Cleanup::deleteSmallDisconnectedComponent(CMeshO& mesh) {
+    vcg::tri::SmallComponent<CMeshO>::Select(mesh, 0.1);
+    vcg::tri::SmallComponent<CMeshO>::DeleteFaceVert(mesh);
 }

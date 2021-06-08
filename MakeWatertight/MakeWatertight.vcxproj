@@ -116,7 +116,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;LIBIGL_USE_STATIC_LIBRARY=OFF;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>false</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\OneDrive\src\vcglib_dev;E:\OneDrive\src\libigl\include;C:\src\vcpkg\installed\x64-windows\include\eigen3;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\OneDrive\src;E:\OneDrive\src\vcglib_dev;E:\OneDrive\src\libigl\include;C:\src\vcpkg\installed\x64-windows\include\eigen3;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard_C>Default</LanguageStandard_C>
       <Optimization>Disabled</Optimization>
     </ClCompile>
@@ -133,7 +133,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;LIBIGL_USE_STATIC_LIBRARY=OFF;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>false</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\src\vcpkg\installed\x64-windows\include\eigen3;E:\OneDrive\src\libigl\include;E:\OneDrive\src\vcglib_dev;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\OneDrive\src;C:\src\vcpkg\installed\x64-windows\include\eigen3;E:\OneDrive\src\libigl\include;E:\OneDrive\src\vcglib_dev;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Disabled</Optimization>
     </ClCompile>
     <Link>

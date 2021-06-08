@@ -7,6 +7,7 @@ namespace Cleanup
     void initialCleanup(CMeshO& mesh);
     void ambientOcclusionRemoval(CMeshO& mesh);
     void fixNonManifold(CMeshO& mesh);
+    void deleteSmallDisconnectedComponent(CMeshO& mesh);
     void updateBoxAndNormals(CMeshO& mesh);
     int deleteSelectedVerts(CMeshO& mesh);
     

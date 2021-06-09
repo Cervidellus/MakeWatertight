@@ -1,5 +1,6 @@
 #include "cleanup.h"
 #include "mesh.h"
+//#include <stdio.h>
 //#include "complex.h"
 
 //#include <cstdint >
@@ -14,13 +15,8 @@
 
 #include <meshlab/src/meshlabplugins/filter_mls/smallcomponentselection.h>
 
-//#include <eigenlib/Eigen/Core>
-
-
 #include <igl/embree/ambient_occlusion.h>
-//#include <igl/AABB.h>
 
-#include "mesh.h"
 typedef unsigned int uint;
 using namespace vcg;
 using namespace std;
@@ -104,9 +100,9 @@ void Cleanup::ambientOcclusionRemoval(CMeshO& mesh) {
     //int vvn = mesh.vn;
     //int ffn = mesh.fn;
 
-    deleteSelectedVerts(mesh);
-
-    printf("Mesh has %i vertices and %i triangular faces after ambient occlusion removal.\n", mesh.VN(), mesh.FN());
+    //deleteSelectedVerts(mesh);
+    vcg::tri::SmallComponent<CMeshO>::DeleteFaceVert(mesh);
+    std::printf("Mesh has %i vertices and %i triangular faces after ambient occlusion removal.\n", mesh.VN(), mesh.FN());
 
 
     //for (fi = mesh.face.begin(); fi != mesh.face.end(); ++fi)
@@ -129,7 +125,7 @@ void Cleanup::ambientOcclusionRemoval(CMeshO& mesh) {
     tri::UpdateSelection<CMeshO>::VertexClear(mesh);
     tri::UpdateSelection<CMeshO>::FaceClear(mesh);
     tri::Allocator<CMeshO>::CompactVertexVector(mesh);
-    printf("Mesh has %i vertices and %i triangular faces after cleanup.\n", mesh.VN(), mesh.FN());//why is this low?
+    std::printf("Mesh has %i vertices and %i triangular faces after cleanup.\n", mesh.VN(), mesh.FN());//why is this low?
     tri::Allocator<CMeshO>::CompactFaceVector(mesh);
 
     deleteSmallDisconnectedComponent(mesh);
@@ -175,12 +171,12 @@ void Cleanup::fixNonManifold(CMeshO& mesh) {
         tri::Allocator<CMeshO>::CompactFaceVector(mesh);
         updateBoxAndNormals(mesh);
         cout << endl << "Beginning iteration " << iteration << " of fixNonManifold" << endl;
-        printf("Mesh has %i vertices and %i triangular faces\n", mesh.VN(), mesh.FN());
+        std::printf("Mesh has %i vertices and %i triangular faces\n", mesh.VN(), mesh.FN());
 
         //No pre condition. Post condition MM_GEOMETRY_AND_TOPOLOGY_CHANGE (Not sure I have to do anything when this is used.)
         result = tri::Clean<CMeshO>::RemoveUnreferencedVertex(mesh);
         cout << result << " unreferenced vertices removed." << endl;
-        printf("Mesh has %i vertices and %i triangular faces\n", mesh.VN(), mesh.FN());
+        std::printf("Mesh has %i vertices and %i triangular faces\n", mesh.VN(), mesh.FN());
         if (result != 0) updateBoxAndNormals(mesh);
 
         //requirements MeshModel::MM_FACEFACETOPO | MeshModel::MM_VERTMARK;
@@ -195,18 +191,18 @@ void Cleanup::fixNonManifold(CMeshO& mesh) {
         tri::Allocator<CMeshO>::CompactFaceVector(mesh);
 
         cout << "Repairing non-manifold edges through vertex splitting." << endl;
-        printf("Mesh has %i vertices and %i triangular faces after update.\n", mesh.VN(), mesh.FN());
+        std::printf("Mesh has %i vertices and %i triangular faces after update.\n", mesh.VN(), mesh.FN());
         //requirements MeshModel::MM_FACEFACETOPO | MeshModel::MM_VERTMARK;
         //Post condition MM_GEOMETRY_AND_TOPOLOGY_CHANGE
         result = tri::Clean<CMeshO>::SplitManifoldComponents(mesh/*, .005*/);//I need to add a move threshold
         cout << result << " vertices split by SplitManifoldComponents." << endl;
         //This results in a crazy number of unreferenced vertices! Is this a bug?
-        printf("Mesh has %i vertices and %i triangular faces post vertex splitting. \n", mesh.VN(), mesh.FN());
+        std::printf("Mesh has %i vertices and %i triangular faces post vertex splitting. \n", mesh.VN(), mesh.FN());
 
         //No pre condition. Post condition MM_GEOMETRY_AND_TOPOLOGY_CHANGE (Not sure I have to do anything when this is used.)
         result = tri::Clean<CMeshO>::RemoveUnreferencedVertex(mesh);
         cout << result << " unreferenced vertices removed." << endl;
-        printf("Mesh has %i vertices and %i triangular faces\n", mesh.VN(), mesh.FN());
+        std::printf("Mesh has %i vertices and %i triangular faces\n", mesh.VN(), mesh.FN());
         if (result != 0) updateBoxAndNormals(mesh);
 
         vcg::tri::UpdateTopology<CMeshO>::FaceFace(mesh);
@@ -218,13 +214,13 @@ void Cleanup::fixNonManifold(CMeshO& mesh) {
         cout << "Repairing non-manifold vertices by vertex splitting." << endl;
         result = tri::Clean<CMeshO>::SplitNonManifoldVertex(mesh, .005);
         cout << result << " vertices split by SplitManifoldVertex." << endl;
-        printf("Mesh has %i vertices and %i triangular faces post vertex splitting. \n", mesh.VN(), mesh.FN());
+        std::printf("Mesh has %i vertices and %i triangular faces post vertex splitting. \n", mesh.VN(), mesh.FN());
         if (result != 0) updateBoxAndNormals(mesh);
 
         //No pre condition. Post condition MM_GEOMETRY_AND_TOPOLOGY_CHANGE (Not sure I have to do anything when this is used.)
         result = tri::Clean<CMeshO>::RemoveUnreferencedVertex(mesh);
         cout << result << " unreferenced vertices removed." << endl;
-        printf("Mesh has %i vertices and %i triangular faces\n", mesh.VN(), mesh.FN());
+        std::printf("Mesh has %i vertices and %i triangular faces\n", mesh.VN(), mesh.FN());
         if (result != 0) updateBoxAndNormals(mesh);
 
         //select and delete remaining
@@ -233,8 +229,9 @@ void Cleanup::fixNonManifold(CMeshO& mesh) {
         if (nonManifoldVerts > 0)
         {
             cout << "Verts, faces prior to deletion:" << mesh.VN() << "," << mesh.FN() << endl;
-            int result = deleteSelectedVerts(mesh);
-            cout << result << "Non manifold vertices deleted." << endl;
+            //int result = deleteSelectedVerts(mesh);
+            tri::SmallComponent<CMeshO>::DeleteFaceVert(mesh);
+            //cout << result << "Non manifold vertices deleted." << endl;
             cout << "Verts, faces post deletion:" << mesh.VN() << "," << mesh.FN() << endl;
         }
 
@@ -253,35 +250,27 @@ void Cleanup::fixNonManifold(CMeshO& mesh) {
         cout << nonmaniedge << " non-manifold edges and " << nonmanivert << " non-manifold vertices." << endl;
         if ((nonmanivert == 0) && (nonmaniedge == 0))
         {
-            cout << "Mesh is now 2-manifold" << endl;;
-            //Close holes and update
-            tri::UpdateSelection<CMeshO>::VertexClear(mesh);
-            tri::UpdateSelection<CMeshO>::FaceClear(mesh);
-            closeHoles(mesh);
-            tri::UpdateSelection<CMeshO>::VertexClear(mesh);
+            cout << "Mesh is now 2-manifold" << endl;
 
-            result = tri::Clean<CMeshO>::RemoveUnreferencedVertex(mesh);
-            if (result != 0) updateBoxAndNormals(mesh);
-            cout << result << " unreferenced vertices removed." << endl;
-
-            vcg::tri::UpdateTopology<CMeshO>::FaceFace(mesh);
-            vcg::tri::UpdateTopology<CMeshO>::VertexFace(mesh);
-            vcg::tri::UpdateFlags<CMeshO>::FaceBorderFromFF(mesh);
-            tri::Allocator<CMeshO>::CompactVertexVector(mesh);
-            tri::Allocator<CMeshO>::CompactFaceVector(mesh);
-
-            //Check for 2-manifold again.
-            tri::UpdateSelection<CMeshO>::VertexClear(mesh);
-            tri::UpdateSelection<CMeshO>::FaceClear(mesh);
-            if ((tri::Clean<CMeshO>::CountNonManifoldVertexFF(mesh, false, true)) == 0 && (tri::Clean<CMeshO>::CountNonManifoldEdgeFF(mesh) == 0))
-            {
-                cout << "Finished fixNonManifold." << endl;
-                break;
+            //exception thrown line 571 of component_ocf
+            // vector_ocf<typename T::VertexType> &Base() const { return *_ovp;}
+            // this was nullpointer
+            //very likely I need to compact things. 
+            closeHoles(mesh, 500, false, true, true);
             }
-            else
-            {
-                cout << "Close-holes introduced non 2-manifold geometry." << endl;
-            }
+
+        //Check for 2-manifold again.
+        tri::UpdateSelection<CMeshO>::VertexClear(mesh);
+        tri::UpdateSelection<CMeshO>::FaceClear(mesh);
+        if ((tri::Clean<CMeshO>::CountNonManifoldVertexFF(mesh, false, true)) == 0 && (tri::Clean<CMeshO>::CountNonManifoldEdgeFF(mesh) == 0))
+        {
+            cout << "Finished fixNonManifold." << endl;
+
+            break;
+        }
+        else
+        {
+            cout << "Close-holes introduced non 2-manifold geometry." << endl;
         }
     }
 }
@@ -319,20 +308,81 @@ int Cleanup::deleteSelectedVerts(CMeshO& mesh) {
             tri::Allocator<CMeshO>::DeleteVertex(mesh, *vertexIterator);
             deleted++;
         }
-    //    m.clearDataMask(MeshModel::MM_FACEFACETOPO);
-    //    m.clearDataMask(MeshModel::MM_VERTFACETOPO);
+
     updateBoxAndNormals(mesh);
-    printf("Deleted %i vertices, %i faces.", vvn - mesh.vn, ffn - mesh.fn);
+    std::printf("Deleted %i vertices, %i faces.", vvn - mesh.vn, ffn - mesh.fn);
 
     return deleted;
 }
 
-void Cleanup::closeHoles(CMeshO& mesh, int maxHoleSize, bool selected, bool avoidSelfIntersection) {
+void Cleanup::closeHoles(CMeshO& mesh, int maxHoleSize, bool selected, bool avoidSelfIntersection, bool iterate) {
     cout << "Closing holes." << endl;
-    if (avoidSelfIntersection)
-        tri::Hole<CMeshO>::EarCuttingIntersectionFill<tri::SelfIntersectionEar< CMeshO> >(mesh, maxHoleSize, selected);
+    if (iterate)
+    {
+        while (true)
+        {
+            //Maybe check for non_manifold here? Maybe have it return a success bool, so non-manifold can be handled elsewhere. 
+            // Or... maybe take the while loop out of cleanup ( I think this is the better idea...) that way I can handle the manifold check in a nicer way. 
+            //first try filling the hole.
+            tri::Hole<CMeshO>::EarCuttingIntersectionFill<tri::SelfIntersectionEar< CMeshO> >(mesh, maxHoleSize, selected);
+            //If that fails, delete folded faces and remaining border.
+            selectBorder(mesh);
+            int borderVerts = tri::UpdateSelection<CMeshO>::VertexCount(mesh);
+            int borderFaces = tri::UpdateSelection<CMeshO>::FaceCount(mesh);
+            cout << borderVerts << " border vertices and " << borderFaces << " found after closing holes." << endl;
+            if (borderFaces > 0)
+            {
+                cout << "Deleting border and folded faces." << endl;
+                //select and delete folded faces
+                selectFoldedFaces(mesh);//crashes here
+                int foldedCount = tri::UpdateSelection<CMeshO>::FaceCount(mesh);
+                if (foldedCount > 0)
+                {
+                    cout << "Deleting " << foldedCount << " folded faces." << endl;
+                    tri::SmallComponent<CMeshO>::DeleteFaceVert(mesh);
+                }
+                selectBorder(mesh);
+                tri::SmallComponent<CMeshO>::DeleteFaceVert(mesh);
+                deleteSmallDisconnectedComponent(mesh);
+                tri::UpdateTopology<CMeshO>::FaceFace(mesh);
+                tri::UpdateTopology<CMeshO>::VertexFace(mesh);
+                tri::Allocator<CMeshO>::CompactVertexVector(mesh);
+                tri::Allocator<CMeshO>::CompactFaceVector(mesh);
+
+                //NEED TO CHECK FOR NON_MANIFOLD BEFORE CLOSING HOLES>>> 
+            }
+            else break;
+        }
+    }
     else
-        tri::Hole<CMeshO>::EarCuttingFill<vcg::tri::MinimumWeightEar< CMeshO> >(mesh, maxHoleSize, selected);
+    {
+        if (!avoidSelfIntersection)
+            tri::Hole<CMeshO>::EarCuttingIntersectionFill<tri::SelfIntersectionEar< CMeshO> >(mesh, maxHoleSize, selected);
+        else
+            tri::Hole<CMeshO>::EarCuttingFill<tri::MinimumWeightEar< CMeshO> >(mesh, maxHoleSize, selected);
+    }
+
+}
+
+void Cleanup::selectBorder(CMeshO& mesh)
+{
+    tri::UpdateSelection<CMeshO>::VertexClear(mesh);
+    tri::UpdateSelection<CMeshO>::FaceClear(mesh);
+    tri::UpdateFlags<CMeshO>::FaceBorderFromNone(mesh);
+    tri::UpdateFlags<CMeshO>::VertexBorderFromFaceBorder(mesh);
+    tri::UpdateSelection<CMeshO>::FaceFromBorderFlag(mesh);
+    tri::UpdateSelection<CMeshO>::VertexFromBorderFlag(mesh);
+}
+
+void Cleanup::selectFoldedFaces(CMeshO& mesh)
+{
+    tri::Allocator<CMeshO>::CompactVertexVector(mesh);
+    tri::Allocator<CMeshO>::CompactFaceVector(mesh);
+    tri::UpdateSelection<CMeshO>::VertexClear(mesh);
+    tri::UpdateSelection<CMeshO>::FaceClear(mesh);
+    tri::UpdateTopology<CMeshO>::FaceFace(mesh);
+    tri::UpdateTopology<CMeshO>::VertexFace(mesh);
+    tri::Clean<CMeshO>::SelectFoldedFaceFromOneRingFaces(mesh, 2.9);//2.9 is roughly 170 degrees.
 }
 
 void Cleanup::deleteSmallDisconnectedComponent(CMeshO& mesh) {

@@ -105,7 +105,7 @@ int main(int argc, char* argv[])
         return 0;
 }
 
-//Next steps::removal of small disconnected component
+//Next steps:
 
 //Iteratively delete border if close holes fails at end of fixNonManifold. Then check manifold again.
 

@@ -4,17 +4,18 @@ class CMeshO;
 
 namespace Cleanup
 {
+    void makeManifoldAndWatertight(CMeshO& mesh, bool ambientOcclusion = true);
     void initialCleanup(CMeshO& mesh);
     void ambientOcclusionRemoval(CMeshO& mesh);
-    void fixNonManifold(CMeshO& mesh);
+    bool fixNonManifold(CMeshO& mesh);
     void deleteSmallDisconnectedComponent(CMeshO& mesh);
     void updateBoxAndNormals(CMeshO& mesh);
-    int deleteSelectedVerts(CMeshO& mesh);
+    int deleteSelectedFacesAndVerts(CMeshO& mesh);
     
     //bool selected acts only on the selected mesh.
-    //bool iterate will iteratively close holes, delete folded faces and delete border vertices to fix difficult holes. 
-    void closeHoles(CMeshO& mesh, int maxHoleSize = 500, bool selected = false, bool avoidSelfIntersection = true, bool iterate = false);
-    //void closeHolesIteratively()
+    //If there are remaining border faces, it returns false with border verts and faces selected
+    bool closeHoles(CMeshO& mesh, int maxHoleSize = 500, bool selected = false, bool avoidSelfIntersection = true);
+
     void selectBorder(CMeshO& mesh);
     void selectFoldedFaces(CMeshO& mesh);
 }

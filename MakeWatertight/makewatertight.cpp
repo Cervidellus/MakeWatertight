@@ -86,15 +86,7 @@ int main(int argc, char* argv[])
         mesh.vert.EnableColor();
 
         //Process Mesh
-        Cleanup::initialCleanup(mesh);
-        if(vm["ambient_occlusion"].as<bool>())
-        {
-            Cleanup::ambientOcclusionRemoval(mesh);
-        }
-
-        Cleanup::fixNonManifold(mesh);
-
-        Cleanup::closeHoles(mesh);
+        Cleanup::makeManifoldAndWatertight(mesh, vm["ambient_occlusion"].as<bool>());
 
         //Save Mesh
         std::string outputFilePath = (destination.string() + "/" + source.filename().string());
@@ -108,6 +100,7 @@ int main(int argc, char* argv[])
 //Next steps:
 
 //Iteratively delete border if close holes fails at end of fixNonManifold. Then check manifold again.
+    //Figure out where it needs updating, and get rid of some of hte extra bits...
 
 //Write to process a list instead of a string. 
 

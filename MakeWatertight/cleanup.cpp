@@ -23,7 +23,7 @@ typedef unsigned int uint;
 using namespace vcg;
 using namespace std;
 
-void Cleanup::makeManifoldAndWatertight(CMeshO& mesh, bool ambientOcclusion) {
+void Cleanup::makeManifoldAndWatertight(CMeshO& mesh, bool ambientOcclusion, bool removeFolded){
     initialCleanup(mesh);
     
     //updateBoxAndNormals(mesh);
@@ -42,35 +42,26 @@ void Cleanup::makeManifoldAndWatertight(CMeshO& mesh, bool ambientOcclusion) {
         watertight = closeHoles(mesh);
         if (!watertight) {
             //delete remaining border and folded faces, which can frustrate attempts to close holes. Border should be selected from closeHoles.
-            std::cout << "Deleting border and folded faces." << endl;
+            std::cout << "Deleting border faces." << endl;
             int borderFaces = tri::UpdateSelection<CMeshO>::FaceCount(mesh);
             int borderVerts = tri::UpdateSelection<CMeshO>::VertexCount(mesh);
             std::cout << borderVerts << " border vertices and " << borderFaces << " border faces were selected for deletion." << endl;
             std::printf("Mesh has %i vertices and %i triangular faces before deleting border faces.\n", mesh.VN(), mesh.FN());
-            
             deleteSelectedFaces(mesh);
             deleteSelectedVertices(mesh);
             std::printf("Mesh has %i vertices and %i triangular faces after deleting border faces.\n", mesh.VN(), mesh.FN());
 
-            selectFoldedFaces(mesh);//this is slow... TODO: add this as an option.
-            int foldedCount = tri::UpdateSelection<CMeshO>::FaceCount(mesh) - borderFaces;
-            std::cout << "Deleting " << borderFaces << " border faces and " <<   foldedCount << " folded faces." << endl;
-
-
-
-
-            //deleteSelectedFacesAndVerts(mesh);
-            tri::UpdateSelection<CMeshO>::VertexFromFaceStrict(mesh);
-            std::cout << tri::UpdateSelection<CMeshO>::FaceCount(mesh) << "faces selected for deletion." << endl;
-            std::cout << tri::UpdateSelection<CMeshO>::VertexCount(mesh) << "verteices selected for deletion." << endl;
-            deleteSelectedFaces(mesh);
-            deleteSelectedVertices(mesh);
-            std::printf("Mesh has %i vertices and %i triangular faces after deleting border faces and folded faces.\n", mesh.VN(), mesh.FN());
-
-
-
-
-
+            if (removeFolded) {
+                selectFoldedFaces(mesh);
+                int foldedCount = tri::UpdateSelection<CMeshO>::FaceCount(mesh);
+                std::cout << "Deleting " << tri::UpdateSelection<CMeshO>::FaceCount(mesh) << " folded faces." << endl;
+                tri::UpdateSelection<CMeshO>::VertexFromFaceLoose(mesh);
+                std::cout << tri::UpdateSelection<CMeshO>::FaceCount(mesh) << "faces selected for deletion." << endl;
+                std::cout << tri::UpdateSelection<CMeshO>::VertexCount(mesh) << "verteices selected for deletion." << endl;
+                deleteSelectedFaces(mesh);
+                deleteSelectedVertices(mesh);
+                std::printf("Mesh has %i vertices and %i triangular faces after deleting border faces and folded faces.\n", mesh.VN(), mesh.FN());
+            }
 
 
 

@@ -35,6 +35,10 @@ int main(int argc, char* argv[])
         ("ambient_occlusion, a",
             po::value<bool>()->default_value(true), 
             "Deletion of internal geometries based on screen space ambient occlusion values. Default True.")
+
+        ("remove_folded, f", 
+            po::value<bool>()->default_value(false),
+            "Delete folded faces if mesh not watertight.")
         ;
 
     po::variables_map vm;
@@ -86,7 +90,7 @@ int main(int argc, char* argv[])
         mesh.vert.EnableColor();
 
         //Process Mesh
-        Cleanup::makeManifoldAndWatertight(mesh, vm["ambient_occlusion"].as<bool>());
+        Cleanup::makeManifoldAndWatertight(mesh, vm["ambient_occlusion"].as<bool>(), vm["remove_folded"].as<bool>());
 
         //Save Mesh
         std::string outputFilePath = (destination.string() + "/" + source.filename().string());
@@ -98,8 +102,6 @@ int main(int argc, char* argv[])
 }
 
 //Next steps:
-
-//Fix deletion, separating faces from vertices.
 
 //Iteratively delete border if close holes fails at end of fixNonManifold. Then check manifold again.
     //Figure out where it needs updating, and get rid of some of hte extra bits...

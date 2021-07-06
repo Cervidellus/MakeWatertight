@@ -4,7 +4,7 @@ class CMeshO;
 
 namespace Cleanup
 {
-    void makeManifoldAndWatertight(CMeshO& mesh, bool ambientOcclusion = true);
+    void makeManifoldAndWatertight(CMeshO& mesh, bool ambientOcclusion = true, bool removeFolded = true);
     void initialCleanup(CMeshO& mesh);
     void ambientOcclusionRemoval(CMeshO& mesh);
     bool fixNonManifold(CMeshO& mesh);

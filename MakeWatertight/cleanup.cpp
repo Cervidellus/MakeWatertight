@@ -13,6 +13,8 @@
 #include <vcg/complex/algorithms/inertia.h>
 #include <vcg/complex/algorithms/update/color.h>
 
+#include <wrap/io_trimesh/export.h>//for debugging
+
 #include <meshlab/src/meshlabplugins/filter_mls/smallcomponentselection.h>
 
 #include <igl/embree/ambient_occlusion.h>
@@ -22,11 +24,9 @@ using namespace vcg;
 using namespace std;
 
 void Cleanup::makeManifoldAndWatertight(CMeshO& mesh, bool ambientOcclusion) {
-    //int result = tri::Clean<CMeshO>::RemoveUnreferencedVertex(mesh); //crash here? this is strange. 
-    //std::cout << result << " unreferenced vertices removed." << endl;
     initialCleanup(mesh);
     
-    updateBoxAndNormals(mesh);
+    //updateBoxAndNormals(mesh);
     if (ambientOcclusion)
     {
         Cleanup::ambientOcclusionRemoval(mesh);
@@ -34,24 +34,45 @@ void Cleanup::makeManifoldAndWatertight(CMeshO& mesh, bool ambientOcclusion) {
     
     bool manifold = false;
     bool watertight = false;
+    int iteration = 0;
     while (!manifold && !watertight) {
+        iteration++;
         manifold = fixNonManifold(mesh);
         manifold = false;//This prevents leaving while loop until after closeHoles has been called, with a subsequent check on if 2-manifold.
         watertight = closeHoles(mesh);
         if (!watertight) {
             //delete remaining border and folded faces, which can frustrate attempts to close holes. Border should be selected from closeHoles.
             std::cout << "Deleting border and folded faces." << endl;
-
-
             int borderFaces = tri::UpdateSelection<CMeshO>::FaceCount(mesh);
-            std::printf("Mesh has %i vertices and %i triangular faces before deleting border faces and folded faces.\n", mesh.VN(), mesh.FN());
+            int borderVerts = tri::UpdateSelection<CMeshO>::VertexCount(mesh);
+            std::cout << borderVerts << " border vertices and " << borderFaces << " border faces were selected for deletion." << endl;
+            std::printf("Mesh has %i vertices and %i triangular faces before deleting border faces.\n", mesh.VN(), mesh.FN());
+            
+            deleteSelectedFaces(mesh);
+            deleteSelectedVertices(mesh);
+            std::printf("Mesh has %i vertices and %i triangular faces after deleting border faces.\n", mesh.VN(), mesh.FN());
+
             selectFoldedFaces(mesh);//this is slow... TODO: add this as an option.
             int foldedCount = tri::UpdateSelection<CMeshO>::FaceCount(mesh) - borderFaces;
             std::cout << "Deleting " << borderFaces << " border faces and " <<   foldedCount << " folded faces." << endl;
-            
 
-            deleteSelectedFacesAndVerts(mesh);
+
+
+
+            //deleteSelectedFacesAndVerts(mesh);
+            tri::UpdateSelection<CMeshO>::VertexFromFaceStrict(mesh);
+            std::cout << tri::UpdateSelection<CMeshO>::FaceCount(mesh) << "faces selected for deletion." << endl;
+            std::cout << tri::UpdateSelection<CMeshO>::VertexCount(mesh) << "verteices selected for deletion." << endl;
+            deleteSelectedFaces(mesh);
+            deleteSelectedVertices(mesh);
             std::printf("Mesh has %i vertices and %i triangular faces after deleting border faces and folded faces.\n", mesh.VN(), mesh.FN());
+
+
+
+
+
+
+
 
             //selectBorder(mesh);
             //tri::SmallComponent<CMeshO>::DeleteFaceVert(mesh);
@@ -64,6 +85,11 @@ void Cleanup::makeManifoldAndWatertight(CMeshO& mesh, bool ambientOcclusion) {
             tri::UpdateTopology<CMeshO>::VertexFace(mesh);
             tri::Allocator<CMeshO>::CompactVertexVector(mesh);
             tri::Allocator<CMeshO>::CompactFaceVector(mesh);
+
+            if (iteration == 3) {
+                cout << "saving iteration 3" << endl; 
+                vcg::tri::io::Exporter<CMeshO>::Save(mesh, "E:/OneDrive/src/MakeWatertight/MakeWatertight/output/iteration3.ply", vcg::tri::io::Mask::IOM_VERTCOLOR | vcg::tri::io::Mask::IOM_VERTQUALITY);
+            }
         }
     }
     deleteSmallDisconnectedComponent(mesh);
@@ -127,9 +153,9 @@ void Cleanup::ambientOcclusionRemoval(CMeshO& mesh) {
     tri::UpdateSelection<CMeshO>::VertexClear(mesh);
     tri::UpdateSelection<CMeshO>::FaceClear(mesh);
     tri::UpdateSelection<CMeshO>::VertexFromQualityRange(mesh, 0.95, 1);
-    tri::UpdateSelection<CMeshO>::FaceFromVertexStrict(mesh);
-
-    deleteSelectedFacesAndVerts(mesh);//crashes here
+    //tri::UpdateSelection<CMeshO>::FaceFromVertexStrict(mesh);
+    //deleteSelectedFacesAndVerts(mesh);//crashes here
+    deleteSelectedVertices(mesh);
 
     std::printf("Mesh has %i vertices and %i triangular faces after ambient occlusion removal.\n", mesh.VN(), mesh.FN());
 
@@ -222,7 +248,7 @@ bool Cleanup::fixNonManifold(CMeshO& mesh) {
             {
                 //int result = deleteSelectedVerts(mesh);
                 std::cout << "Deleting remaining non-manifold vertices." << endl;
-                deleteSelectedFacesAndVerts(mesh);
+                deleteSelectedVertices(mesh);
                 std::cout << "Verts, faces post deletion:" << mesh.VN() << "," << mesh.FN() << endl;
             }
         }
@@ -246,6 +272,7 @@ void Cleanup::updateBoxAndNormals(CMeshO& mesh) {
 int Cleanup::deleteSelectedFacesAndVerts(CMeshO& mesh) {
     //Flag as deleted all vertices that are flagged as selected.
     //Might be more effecient for me to re-write CountNonManifoldVertexFF and flag as delete instead of selected.
+    cout << tri::UpdateSelection<CMeshO>::VertexCount(mesh) << " vertices selected at start of delteSelectedFacesAndVerts" << endl;
     CMeshO::FaceIterator faceIterator;
     CMeshO::VertexIterator vertexIterator;
     int deleted = 0;
@@ -257,12 +284,12 @@ int Cleanup::deleteSelectedFacesAndVerts(CMeshO& mesh) {
     mesh.face.EnableVFAdjacency();
     tri::UpdateTopology<CMeshO>::FaceFace(mesh);
     tri::UpdateTopology<CMeshO>::VertexFace(mesh);
-
+    cout << tri::UpdateSelection<CMeshO>::VertexCount(mesh) << " vertices after updating in  delteSelectedFacesAndVerts" << endl;
     int vvn = mesh.vn;
     int ffn = mesh.fn;
 
-    tri::UpdateSelection<CMeshO>::VertexFromFaceStrict(mesh);
-
+    tri::UpdateSelection<CMeshO>::VertexFromFaceStrict(mesh);//strict gets rid of some of what we want. Loose crashes after ambient occlusion. Crashes hard if I get rid of it. 
+    cout << tri::UpdateSelection<CMeshO>::VertexCount(mesh) << " vertices selectedafter vertexfromfaceLo" << endl;
     for (faceIterator = mesh.face.begin(); faceIterator != mesh.face.end(); ++faceIterator)
         if (!(*faceIterator).IsD() && (*faceIterator).IsS())
             tri::Allocator<CMeshO>::DeleteFace(mesh, *faceIterator);
@@ -274,10 +301,60 @@ int Cleanup::deleteSelectedFacesAndVerts(CMeshO& mesh) {
         }
 
     updateBoxAndNormals(mesh);
-    std::printf("Deleted %i vertices, %i faces.", vvn - mesh.vn, ffn - mesh.fn);
+    std::printf("Deleted %i vertices, %i faces.\n", vvn - mesh.vn, ffn - mesh.fn);
 
     return deleted;
 }
+
+
+
+
+
+
+int Cleanup::deleteSelectedFaces(CMeshO& mesh) {
+    int deleted = 0;
+
+    if (tri::UpdateSelection<CMeshO>::FaceCount(mesh) > 0)
+    {
+        CMeshO::FaceIterator faceIterator;
+        for (faceIterator = mesh.face.begin(); faceIterator != mesh.face.end(); ++faceIterator)
+            if (!(*faceIterator).IsD() && (*faceIterator).IsS()) {
+                tri::Allocator<CMeshO>::DeleteFace(mesh, *faceIterator);
+                deleted++;
+            }
+                
+    }
+
+    return deleted;
+}
+
+
+int Cleanup::deleteSelectedVertices(CMeshO& mesh) {
+    int deleted = 0;
+
+    if (tri::UpdateSelection<CMeshO>::VertexCount(mesh) > 0)
+    {
+        tri::UpdateSelection<CMeshO>::FaceClear(mesh);
+        tri::UpdateSelection<CMeshO>::FaceFromVertexLoose(mesh);
+        CMeshO::FaceIterator faceIterator;
+        CMeshO::VertexIterator vertexIterator;
+
+        for (faceIterator = mesh.face.begin(); faceIterator != mesh.face.end(); ++faceIterator)
+            if (!(*faceIterator).IsD() && (*faceIterator).IsS())
+                tri::Allocator<CMeshO>::DeleteFace(mesh, *faceIterator);
+        for (vertexIterator = mesh.vert.begin(); vertexIterator != mesh.vert.end(); ++vertexIterator)
+            if (!(*vertexIterator).IsD() && (*vertexIterator).IsS()) {
+                tri::Allocator<CMeshO>::DeleteVertex(mesh, *vertexIterator);
+                deleted++;
+            }
+                
+        updateBoxAndNormals(mesh);
+    }
+    return deleted;
+}
+
+
+
 
 bool Cleanup::closeHoles(CMeshO& mesh, int maxHoleSize, bool selected, bool avoidSelfIntersection) {
     std::cout << "Closing holes." << endl;
@@ -314,12 +391,12 @@ void Cleanup::selectFoldedFaces(CMeshO& mesh)
     //Temp for debug:
     cout << "Selected faces at start of selectFoldedFaces:" << tri::UpdateSelection<CMeshO>::FaceCount(mesh) << endl;
 
-    tri::Allocator<CMeshO>::CompactVertexVector(mesh);
-    tri::Allocator<CMeshO>::CompactFaceVector(mesh);
-    //tri::UpdateSelection<CMeshO>::VertexClear(mesh);
-    //tri::UpdateSelection<CMeshO>::FaceClear(mesh);
-    tri::UpdateTopology<CMeshO>::FaceFace(mesh);
-    tri::UpdateTopology<CMeshO>::VertexFace(mesh);
+    //tri::Allocator<CMeshO>::CompactVertexVector(mesh);
+    //tri::Allocator<CMeshO>::CompactFaceVector(mesh);
+    ////tri::UpdateSelection<CMeshO>::VertexClear(mesh);
+    ////tri::UpdateSelection<CMeshO>::FaceClear(mesh);
+    //tri::UpdateTopology<CMeshO>::FaceFace(mesh);
+    //tri::UpdateTopology<CMeshO>::VertexFace(mesh);
     tri::Clean<CMeshO>::SelectFoldedFaceFromOneRingFaces(mesh, 2.9);//2.9 is roughly 170 degrees.
 
         //Temp for debug:
@@ -328,8 +405,10 @@ void Cleanup::selectFoldedFaces(CMeshO& mesh)
 
 void Cleanup::deleteSmallDisconnectedComponent(CMeshO& mesh) {
     vcg::tri::SmallComponent<CMeshO>::Select(mesh);
-    vcg::tri::UpdateSelection<CMeshO>::VertexFromFaceStrict(mesh);
+    vcg::tri::UpdateSelection<CMeshO>::VertexFromFaceLoose(mesh);//TODO:shouldn't this be loose?
     cout << "Selected Faces after selecting small component:" << tri::UpdateSelection<CMeshO>::FaceCount(mesh) << endl;
-    cout << "Selected Vertices after selecting small component:" << tri::UpdateSelection<CMeshO>::VertexCount(mesh) << endl;//selects only vertices.
-    deleteSelectedFacesAndVerts(mesh);
+    //cout << "Selected Vertices after selecting small component:" << tri::UpdateSelection<CMeshO>::VertexCount(mesh) << endl;//selects only vertices.
+    //deleteSelectedFacesAndVerts(mesh);
+    //deleteSelectedFaces(mesh)
+    deleteSelectedVertices(mesh);
 }

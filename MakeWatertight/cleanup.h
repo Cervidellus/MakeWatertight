@@ -11,6 +11,9 @@ namespace Cleanup
     void deleteSmallDisconnectedComponent(CMeshO& mesh);
     void updateBoxAndNormals(CMeshO& mesh);
     int deleteSelectedFacesAndVerts(CMeshO& mesh);
+
+    int deleteSelectedFaces(CMeshO& mesh);
+    int deleteSelectedVertices(CMeshO& mesh);
     
     //bool selected acts only on the selected mesh.
     //If there are remaining border faces, it returns false with border verts and faces selected

@@ -99,9 +99,14 @@ int main(int argc, char* argv[])
 
 //Next steps:
 
+//Fix deletion, separating faces from vertices.
+
 //Iteratively delete border if close holes fails at end of fixNonManifold. Then check manifold again.
     //Figure out where it needs updating, and get rid of some of hte extra bits...
+    //add save points so I can see how it is progressing.. 
 
 //Write to process a list instead of a string. 
 
 //Try and figure out how to get vertex splitting to take less memory.
+
+//Figure out why vertex splitting often reports 1 vertex. 

@@ -12,10 +12,12 @@
 #include <vcg/complex/algorithms/mesh_to_matrix.h>
 #include <vcg/complex/algorithms/inertia.h>
 #include <vcg/complex/algorithms/update/color.h>
+//#include <vcg/complex/algorithms/local_optimization/tri_edge_collapse_quadric.h>
 
 #include <wrap/io_trimesh/export.h>//for debugging
 
 #include <meshlab/src/meshlabplugins/filter_mls/smallcomponentselection.h>
+#include <meshlab/src/meshlabplugins/filter_meshing/quadric_simp.h>
 
 #include <igl/embree/ambient_occlusion.h>
 
@@ -36,10 +38,38 @@ void Cleanup::makeManifoldAndWatertight(CMeshO& mesh, bool ambientOcclusion, boo
     bool watertight = false;
     int iteration = 0;
     while (!manifold && !watertight) {
+        int result;
         iteration++;
         manifold = fixNonManifold(mesh);
+        //Fix zero area faces by removing, then merging edges.
+        //result = tri::Clean<CMeshO>::RemoveFaceOutOfRangeArea(mesh, 0);//instead of this, fix t-vertices edge collapse
+        //if (result > 0)
+        //{
+        //vcg::tri::UpdateTopology<CMeshO>::FaceFace(mesh);
+        //vcg::tri::UpdateTopology<CMeshO>::VertexFace(mesh);
+        //tri::Allocator<CMeshO>::CompactVertexVector(mesh);
+        //tri::Allocator<CMeshO>::CompactFaceVector(mesh);
+        //updateBoxAndNormals(mesh);
+        mesh.face.DisableFFAdjacency();
+        mesh.face.DisableVFAdjacency();
+        result = tri::Clean<CMeshO>::RemoveTVertexByCollapse(mesh, 20, true);//crash here
+        cout << result << " T-vertices repaired by edge collapse." << endl;
+        mesh.face.EnableFFAdjacency();
+        mesh.face.EnableVFAdjacency();
+        vcg::tri::UpdateTopology<CMeshO>::FaceFace(mesh);
+        vcg::tri::UpdateTopology<CMeshO>::VertexFace(mesh);
+        result = tri::Clean<CMeshO>::RemoveNonManifoldFace(mesh);//crash Assertion failed: f.cFFp(j) != 0, file E:\OneDrive\src\vcglib_dev\vcg\simplex\face\topology.h, line 43
+        //maybe not needed to update:
+        cout << result << " resulting incident faces removed." << endl;
+        vcg::tri::UpdateTopology<CMeshO>::FaceFace(mesh);
+        vcg::tri::UpdateTopology<CMeshO>::VertexFace(mesh);
+        tri::Allocator<CMeshO>::CompactVertexVector(mesh);
+        tri::Allocator<CMeshO>::CompactFaceVector(mesh);
+        updateBoxAndNormals(mesh);
+        //}
+
         manifold = false;//This prevents leaving while loop until after closeHoles has been called, with a subsequent check on if 2-manifold.
-        watertight = closeHoles(mesh);
+        watertight = closeHoles(mesh); //This can cause zero-area faces to show up again. Can I check for this?
         if (!watertight) {
             //delete remaining border and folded faces, which can frustrate attempts to close holes. Border should be selected from closeHoles.
             std::cout << "Deleting border faces." << endl;
@@ -63,13 +93,9 @@ void Cleanup::makeManifoldAndWatertight(CMeshO& mesh, bool ambientOcclusion, boo
                 std::printf("Mesh has %i vertices and %i triangular faces after deleting border faces and folded faces.\n", mesh.VN(), mesh.FN());
             }
 
+            deleteSmallDisconnectedComponent(mesh);
 
-
-            //selectBorder(mesh);
-            //tri::SmallComponent<CMeshO>::DeleteFaceVert(mesh);
-            deleteSmallDisconnectedComponent(mesh);//Not working?
-
-            int result = tri::Clean<CMeshO>::RemoveUnreferencedVertex(mesh);
+            result = tri::Clean<CMeshO>::RemoveUnreferencedVertex(mesh);
             std::cout << result << " unreferenced vertices removed." << endl;
 
             tri::UpdateTopology<CMeshO>::FaceFace(mesh);
@@ -77,6 +103,7 @@ void Cleanup::makeManifoldAndWatertight(CMeshO& mesh, bool ambientOcclusion, boo
             tri::Allocator<CMeshO>::CompactVertexVector(mesh);
             tri::Allocator<CMeshO>::CompactFaceVector(mesh);
 
+            //for testing, will be removed.
             if (iteration == 3) {
                 cout << "saving iteration 3" << endl; 
                 vcg::tri::io::Exporter<CMeshO>::Save(mesh, "E:/OneDrive/src/MakeWatertight/MakeWatertight/output/iteration3.ply", vcg::tri::io::Mask::IOM_VERTCOLOR | vcg::tri::io::Mask::IOM_VERTQUALITY);
@@ -90,8 +117,8 @@ void Cleanup::initialCleanup(CMeshO& mesh) {
     int result = 0;
     deleteSmallDisconnectedComponent(mesh);
     std::cout << " Deleted small disconnected component." << endl;
-    result = tri::Clean<CMeshO>::RemoveFaceOutOfRangeArea(mesh, 0);//This I believe causes some unfortunate holes and t-vertices.
-    std::cout << result << " Zero area vertices removed." << endl;
+    //result = tri::Clean<CMeshO>::RemoveFaceOutOfRangeArea(mesh, 0);//This I believe causes some unfortunate holes and t-vertices.
+    //std::cout << result << " Zero area vertices removed." << endl;
 
     result = tri::Clean<CMeshO>::RemoveDuplicateFace(mesh);
     std::cout << result << " Duplicate Faces removed." << endl;
@@ -193,7 +220,6 @@ bool Cleanup::fixNonManifold(CMeshO& mesh) {
             //Remove incident faces to fix non-manifold edges.
             result = tri::Clean<CMeshO>::RemoveUnreferencedVertex(mesh);
             std::cout << result << " unreferenced vertices removed." << endl;
-            //std::printf("Mesh has %i vertices and %i triangular faces\n", mesh.VN(), mesh.FN());
             if (result != 0) updateBoxAndNormals(mesh);
             result = tri::Clean<CMeshO>::RemoveNonManifoldFace(mesh);
             std::cout << result << " incident faces removed to fix non-manifold edges." << endl;
@@ -260,48 +286,6 @@ void Cleanup::updateBoxAndNormals(CMeshO& mesh) {
     }
 }
 
-int Cleanup::deleteSelectedFacesAndVerts(CMeshO& mesh) {
-    //Flag as deleted all vertices that are flagged as selected.
-    //Might be more effecient for me to re-write CountNonManifoldVertexFF and flag as delete instead of selected.
-    cout << tri::UpdateSelection<CMeshO>::VertexCount(mesh) << " vertices selected at start of delteSelectedFacesAndVerts" << endl;
-    CMeshO::FaceIterator faceIterator;
-    CMeshO::VertexIterator vertexIterator;
-    int deleted = 0;
-    //Some of this updating is likely excessive.. should go through and test what I can remove:
-    tri::Allocator<CMeshO>::CompactVertexVector(mesh);
-    tri::Allocator<CMeshO>::CompactFaceVector(mesh);
-    mesh.face.EnableFFAdjacency();
-    mesh.vert.EnableVFAdjacency();
-    mesh.face.EnableVFAdjacency();
-    tri::UpdateTopology<CMeshO>::FaceFace(mesh);
-    tri::UpdateTopology<CMeshO>::VertexFace(mesh);
-    cout << tri::UpdateSelection<CMeshO>::VertexCount(mesh) << " vertices after updating in  delteSelectedFacesAndVerts" << endl;
-    int vvn = mesh.vn;
-    int ffn = mesh.fn;
-
-    tri::UpdateSelection<CMeshO>::VertexFromFaceStrict(mesh);//strict gets rid of some of what we want. Loose crashes after ambient occlusion. Crashes hard if I get rid of it. 
-    cout << tri::UpdateSelection<CMeshO>::VertexCount(mesh) << " vertices selectedafter vertexfromfaceLo" << endl;
-    for (faceIterator = mesh.face.begin(); faceIterator != mesh.face.end(); ++faceIterator)
-        if (!(*faceIterator).IsD() && (*faceIterator).IsS())
-            tri::Allocator<CMeshO>::DeleteFace(mesh, *faceIterator);
-    for (vertexIterator = mesh.vert.begin(); vertexIterator != mesh.vert.end(); ++vertexIterator)
-        if (!(*vertexIterator).IsD() && (*vertexIterator).IsS())
-        {
-            tri::Allocator<CMeshO>::DeleteVertex(mesh, *vertexIterator);
-            deleted++;
-        }
-
-    updateBoxAndNormals(mesh);
-    std::printf("Deleted %i vertices, %i faces.\n", vvn - mesh.vn, ffn - mesh.fn);
-
-    return deleted;
-}
-
-
-
-
-
-
 int Cleanup::deleteSelectedFaces(CMeshO& mesh) {
     int deleted = 0;
 
@@ -344,9 +328,6 @@ int Cleanup::deleteSelectedVertices(CMeshO& mesh) {
     return deleted;
 }
 
-
-
-
 bool Cleanup::closeHoles(CMeshO& mesh, int maxHoleSize, bool selected, bool avoidSelfIntersection) {
     std::cout << "Closing holes." << endl;
     bool closed = false;
@@ -357,9 +338,7 @@ bool Cleanup::closeHoles(CMeshO& mesh, int maxHoleSize, bool selected, bool avoi
     tri::UpdateSelection<CMeshO>::VertexClear(mesh);
     tri::UpdateSelection<CMeshO>::FaceClear(mesh);
     selectBorder(mesh);
-    //int borderVerts = tri::UpdateSelection<CMeshO>::VertexCount(mesh);
     int borderFaces = tri::UpdateSelection<CMeshO>::FaceCount(mesh);
-    //cout << borderVerts << " border vertices and " << borderFaces << " found after closing holes." << endl;
     if (borderFaces == 0) closed = true;
            
     return closed;
@@ -379,27 +358,129 @@ void Cleanup::selectBorder(CMeshO& mesh)
 
 void Cleanup::selectFoldedFaces(CMeshO& mesh)
 {
-    //Temp for debug:
-    cout << "Selected faces at start of selectFoldedFaces:" << tri::UpdateSelection<CMeshO>::FaceCount(mesh) << endl;
-
-    //tri::Allocator<CMeshO>::CompactVertexVector(mesh);
-    //tri::Allocator<CMeshO>::CompactFaceVector(mesh);
-    ////tri::UpdateSelection<CMeshO>::VertexClear(mesh);
-    ////tri::UpdateSelection<CMeshO>::FaceClear(mesh);
-    //tri::UpdateTopology<CMeshO>::FaceFace(mesh);
-    //tri::UpdateTopology<CMeshO>::VertexFace(mesh);
     tri::Clean<CMeshO>::SelectFoldedFaceFromOneRingFaces(mesh, 2.9);//2.9 is roughly 170 degrees.
-
-        //Temp for debug:
-    cout << "Selected faces at end of selectFoldedFaces:" << tri::UpdateSelection<CMeshO>::FaceCount(mesh);
 }
 
 void Cleanup::deleteSmallDisconnectedComponent(CMeshO& mesh) {
     vcg::tri::SmallComponent<CMeshO>::Select(mesh);
-    vcg::tri::UpdateSelection<CMeshO>::VertexFromFaceLoose(mesh);//TODO:shouldn't this be loose?
+    vcg::tri::UpdateSelection<CMeshO>::VertexFromFaceLoose(mesh);
     cout << "Selected Faces after selecting small component:" << tri::UpdateSelection<CMeshO>::FaceCount(mesh) << endl;
-    //cout << "Selected Vertices after selecting small component:" << tri::UpdateSelection<CMeshO>::VertexCount(mesh) << endl;//selects only vertices.
-    //deleteSelectedFacesAndVerts(mesh);
-    //deleteSelectedFaces(mesh)
+
     deleteSelectedVertices(mesh);
 }
+
+//void Cleanup::decimate(CMeshO& mesh, double ratio) {
+//    //m.updateDataMask(MeshModel::MM_VERTFACETOPO | MeshModel::MM_VERTMARK);
+//    mesh.vert.EnableVFAdjacency();
+//    mesh.face.EnableVFAdjacency();
+//    mesh.vert.EnableMark();
+//    tri::UpdateTopology<CMeshO>::VertexFace(mesh);
+//
+//    tri::UpdateFlags<CMeshO>::FaceBorderFromVF(mesh);
+//
+//    //int TargetFaceNum = par.getInt("TargetFaceNum");
+//    int TargetFaceNum = mesh.fn * ratio;
+//
+//    tri::TriEdgeCollapseQuadricParameter pp;
+//    //pp.QualityThr = lastq_QualityThr = par.getFloat("QualityThr");
+//    pp.PreserveBoundary = false;
+//    //pp.FastPreserveBoundary = true;
+//    pp.BoundaryQuadricWeight = 1;
+//    pp.PreserveTopology = true;
+//    pp.QualityWeight = false;
+//    pp.NormalCheck = false;
+//    pp.OptimalPlacement = true;
+//    pp.QualityQuadric = false;
+//    pp.QualityQuadricWeight =.001;
+//    bool lastq_Selected = false;
+//    //vcg::CallBackPos cb;
+//    //QuadricSimplification(mesh, TargetFaceNum, lastq_Selected, pp, cb);//instead of calling this, which requires a callback, copy code from quadric_simp.cpp
+//
+//
+//    math::Quadric<double> QZero;
+//    QZero.SetZero();
+//
+//    tri::QuadricTemp TD(mesh.vert, QZero);
+//    //tri::QHelper::TDp() = &TD;
+//
+//    
+//
+//
+//
+//
+//
+//
+//
+//    vcg::LocalOptimization<CMeshO> DeciSession(mesh, &pp);
+//    //cb(1, "Initializing simplification");
+//
+//
+//
+//
+//    // this fails to compile. I should really wro around mytriedgecollapse, and directly use the one from vcg
+//
+//    DeciSession.Init<tri::MyTriEdgeCollapse >();
+//
+//
+//
+//
+//
+// /*   if (Selected)
+//        TargetFaceNum = m.fn - (m.sfn - TargetFaceNum);*/
+//    DeciSession.SetTargetSimplices(TargetFaceNum);
+//    DeciSession.SetTimeBudget(0.1f); // this allows updating the progress bar 10 time for sec...
+//    //  if(TargetError< numeric_limits<double>::max() ) DeciSession.SetTargetMetric(TargetError);
+//    //int startFn=m.fn;
+//    int faceToDel = mesh.fn - TargetFaceNum;
+//    cout << "Decimating mesh" << endl;
+//    while (DeciSession.DoOptimization() && mesh.fn > TargetFaceNum)
+//    {
+//        int percentDone = 100 - 100 * (mesh.fn - TargetFaceNum) / (faceToDel);
+//        if (percentDone%10 == 0) {
+//            cout << percentDone << " percent finished." << endl;
+//        }
+//        //cb(100 - 100 * (m.fn - TargetFaceNum) / (faceToDel), "Simplifying...");
+//    };
+//
+//    DeciSession.Finalize<tri::MyTriEdgeCollapse >();
+//
+//    //if (Selected) // Clear Writable flags 
+//    //{
+//    //    for (auto vi = m.vert.begin(); vi != m.vert.end(); ++vi)
+//    //    {
+//    //        if (!(*vi).IsD()) (*vi).SetW();
+//    //        if ((*vi).IsS()) (*vi).ClearS();
+//    //    }
+//    //}
+//    //tri::QHelper::TDp() = nullptr;//Not sure what this is here for?
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//    //tri::Clean<CMeshO>::RemoveFaceOutOfRangeArea(mesh, 0);
+//    //if (nullFaces) log("PostSimplification Cleaning: Removed %d null faces", nullFaces);
+//    //int deldupvert = tri::Clean<CMeshO>::RemoveDuplicateVertex(m.cm);
+//    //if (deldupvert) log("PostSimplification Cleaning: Removed %d duplicated vertices", deldupvert);
+//    int delvert = tri::Clean<CMeshO>::RemoveUnreferencedVertex(mesh);
+//    //if (delvert) log("PostSimplification Cleaning: Removed %d unreferenced vertices", delvert);
+//    //m.clearDataMask(MeshModel::MM_FACEFACETOPO);
+//    tri::UpdateTopology<CMeshO>::FaceFace(mesh);
+//    tri::Allocator<CMeshO>::CompactVertexVector(mesh);
+//    tri::Allocator<CMeshO>::CompactFaceVector(mesh);
+//
+//    updateBoxAndNormals(mesh);
+//    tri::UpdateNormal<CMeshO>::NormalizePerFace(mesh);
+//    tri::UpdateNormal<CMeshO>::PerVertexFromCurrentFaceNormal(mesh);
+//    tri::UpdateNormal<CMeshO>::NormalizePerVertex(mesh);
+//}

@@ -10,10 +10,9 @@ namespace Cleanup
     bool fixNonManifold(CMeshO& mesh);
     void deleteSmallDisconnectedComponent(CMeshO& mesh);
     void updateBoxAndNormals(CMeshO& mesh);
-    int deleteSelectedFacesAndVerts(CMeshO& mesh);
-
     int deleteSelectedFaces(CMeshO& mesh);
     int deleteSelectedVertices(CMeshO& mesh);
+    //void decimate(CMeshO& mesh, double ratio = 0.3);
     
     //bool selected acts only on the selected mesh.
     //If there are remaining border faces, it returns false with border verts and faces selected
